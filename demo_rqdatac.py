@@ -1,95 +1,127 @@
 import rqdatac
-import datetime
+from datetime import datetime, timedelta
 import pandas as pd
+import numpy as np
 from scipy.stats import spearmanr
 rqdatac.init()
-#print(rqdatac.get_price('000002.XSHE', start_date=pd.Timestamp("20240101"), end_date=datetime.datetime(2024,2,1)))
-#rqdatac.user.get_quota()
-#value = rqdatac.get_price('000001.XSHE', start_date=20240101, end_date=20240201)
-#value.to_csv('test.csv') #下载成csv格式
-
-
-#current_performance
-#fields = 财务指标数据字典 - 快报数据
-#print(rqdatac.get_pit_financials_ex(fields=['revenue','net_profit'], start_quarter='2018q2', end_quarter='2018q3',order_book_ids=['000001.XSHE','000048.XSHE']))
-#print(rqdatac.current_performance('000004.XSHE',quarter='2017q4',fields = ['basic_eps'], interval='2q'))
-
-#performance_forecast
-#fields = 财务指标数据字典 - 业绩预告数据
-#业绩预告主要用来调取公司对即将到来的财务季度的业绩预期的信息。有时同一个财务季度会有多条记录，分别是季度预期和累计预期（即本年至今）。
-#print(rqdatac.performance_forecast(['000001.XSHE','000006.XSHE'],fields=['forecast_description','forecast_earning_floor']))
-
-#get_factor
-#基础财务数据
-#print(rqdatac.get_factor(['000001.XSHE','000002.XSHE'],'debt_to_equity_ratio',start_date='20180102',end_date='20180103'))
-start = '20240103'
-end = '20240601'
-period = 20
+"""
+start = '20120101'
+end = '20240606'
 start_date = pd.to_datetime(start, format='%Y%m%d')
 end_date = pd.to_datetime(end, format='%Y%m%d')
-new_start_date = start_date + pd.tseries.offsets.BDay(period)
-new_end_date = end_date + pd.tseries.offsets.BDay(period)
-new_start = new_start_date.strftime('%Y%m%d')
-new_end = new_end_date.strftime('%Y%m%d')
-factor =  'debt_to_equity_ratio' #'pe_ratio'
-
-
-#ticker = list(rqdatac.all_instruments(market = 'cn')['order_book_id'])[:100]
-#print(ticker)
-#ticker = rqdatac.get_industry('银行')
+factor =  'pcf_ratio_total_lyr'
 ticker = rqdatac.all_instruments('CS').order_book_id
+#dates = pd.date_range(start=start, end=end, freq='B') 
 
-df = rqdatac.get_factor(ticker, factor, start_date=start, end_date=end)
-unstack_df = df[factor].unstack(level='order_book_id')
-nan_columns = unstack_df.isna().any()
-#print("Columns with all values as NaN:", nan_columns[nan_columns == True])
-#unstack_df.drop(columns=nan_columns[nan_columns == True].index)
+#print(rqdatac.get_all_factor_names(type='eod_indicator'))
+industry_data = pd.DataFrame()
+neutralized_factor_data = pd.DataFrame()
 
-
-
-#get price
-price = rqdatac.get_price(ticker, start_date=start, fields='close', end_date=new_end)['close'].unstack(level='order_book_id')
-returns_df = price.pct_change(period)
-#print("Price: ", price)
-
-
-factor_df = rqdatac.get_factor(ticker, factor, start_date=start, end_date=end)
-factor_unstack_df = factor_df[factor].unstack(level='order_book_id').drop(columns=nan_columns[nan_columns == True].index)
-
-ic_values = []
-dates = unstack_df.index
+#get数据,get完后可以comment掉
+all_stocks = rqdatac.all_instruments(type='CS')
+all_stock_symbols = all_stocks['order_book_id'].tolist()
+df = rqdatac.get_factor(all_stock_symbols, factor, start_date=start, end_date=end).reset_index()
+dates = pd.to_datetime(df['date'].unique()).strftime('%Y-%m-%d')
+today = datetime.now().strftime('%Y-%m-%d')
 
 
-#对齐!!
-returns_df, factor_unstack_df = returns_df.align(factor_unstack_df, join='inner', axis=0)  # 对齐行
-returns_df, factor_unstack_df = returns_df.align(factor_unstack_df, join='inner', axis=1)  # 对齐列
-#print("Factor: ", factor_unstack_df)
-#print("Return: ", returns_df)
-
-for date in dates:
-    future_date = date + pd.tseries.offsets.BDay(period)
-    if future_date in returns_df.index:
-        factor_ranks = factor_unstack_df.loc[date].rank()
-        returns_ranks = returns_df.loc[future_date].rank()
-        ic, _ = spearmanr(factor_ranks, returns_ranks) #_ = p_val
-        ic_values.append({'date': date, 'IC': ic})
-ic_df = pd.DataFrame(ic_values)
-print("IC DF: \n", ic_df)
-
-ir_df = ic_df['IC'].mean() / ic_df['IC'].std()
-print("IR = : \n", ir_df)
+csv_file_path = '/Users/ella/factor.csv' 
+df.to_csv(csv_file_path)
+print(f"数据已保存为 {csv_file_path}")
+"""
 
 
-#---------- sorting table------------
+#因子
+csv_file_path_fac = '/Users/ella/factor.csv' 
+#ST的股票
+csv_file_path_st = '/Users/ella/st_stocks.csv' 
+#停牌
+csv_file_path_sus = '/Users/ella/suspended_stocks.csv'
+#上市不满一年
+#1: 退市日期 - 上市日期  < 1年 #248
+#2: 上市日期 > now - 1年 #179
+csv_file_path_all_1 = '/Users/ella/all_stocks.csv' 
+csv_file_path_new_2 = '/Users/ella/newly_listed_stocks.csv'
+#读数据
+factor = pd.read_csv(csv_file_path_fac)
+st_stocks = pd.read_csv(csv_file_path_st)
+suspended_stocks = pd.read_csv(csv_file_path_sus)
+newly_listed_stocks_1 = pd.read_csv(csv_file_path_all_1)
+newly_listed_stocks_2 = pd.read_csv(csv_file_path_new_2)
 
-def quantile_rank(row):
-    quantiles = pd.qcut(row, 5, labels=[1, 2, 3, 4, 5])
-    return quantiles
-ranked_df = factor_unstack_df.apply(quantile_rank, axis=1)
-ranked_df = ranked_df.stack().reset_index()
-ranked_df.columns = ['date', 'order_book_id', 'gorup']
-ranked_df.set_index(['date','order_book_id'])
-print("RANKED TABLE: \n", ranked_df)
-ranked_df.hist(figsize=(12,6),bins=20)
-#import alphalens
-#alphalens.utils.get_clean_factor_and_forward_returns()
+
+#简简单单清洗一下
+#factor.drop('Unnamed: 0', axis=1)
+factor = factor.drop('Unnamed: 0', axis=1)
+factor.sort_values(by=['date', 'order_book_id'], inplace=True)
+factor.set_index(['date', 'order_book_id'], inplace=True)
+st_stocks.rename(columns={'Unnamed: 0': 'date'}, inplace=True)
+st_stocks.set_index('date', inplace=True)
+suspended_stocks.rename(columns={'Unnamed: 0': 'date'}, inplace=True)
+suspended_stocks.set_index('date', inplace=True)
+newly_listed_stocks_2 = newly_listed_stocks_2.drop('Unnamed: 0', axis=1)
+newly_listed_stocks_2.rename(columns={'0': 'order_book_id'}, inplace=True)
+
+#处理上市不满一年的情况1: 退市日期 - 上市日期  < 1年 
+newly_listed_stocks_1['listed_date'] = pd.to_datetime(newly_listed_stocks_1['listed_date'],  errors='coerce')
+newly_listed_stocks_1['de_listed_date'] = pd.to_datetime(newly_listed_stocks_1['de_listed_date'],  errors='coerce')
+newly_listed_stocks_1['is_one_year'] = newly_listed_stocks_1['de_listed_date'] - newly_listed_stocks_1['listed_date'] > pd.Timedelta(days=365)
+#print(newly_listed_stocks_1['is_one_year'].sum()) #248
+newly_listed_stocks_1 = newly_listed_stocks_1[newly_listed_stocks_1['is_one_year'] == True]
+
+
+#看一下因子index的形式(date, ticker)
+"""
+print("因子: \n", factor.head())
+print("ST股票: \n",st_stocks.head())
+print("停牌: \n", suspended_stocks.head())
+print("上市不满一年_1: \n", newly_listed_stocks_1) #248, 情况1
+print("上市不满一年_2: \n", newly_listed_stocks_2) #179, 情况2
+"""
+
+#filter一下所有为True的股票
+#ONLY ticker~
+specific_date = '2024-05-31'
+#是ST的
+st = st_stocks.loc[specific_date]
+st = st[st == True].index.tolist()
+#print(stocks_st)
+
+#是停牌的
+suspended = suspended_stocks.loc[specific_date]
+suspended = suspended[suspended == True].index.tolist()
+#print(suspended)
+
+#是上市不满一年的
+smaller_1yr = newly_listed_stocks_1['order_book_id'].tolist() + newly_listed_stocks_2['order_book_id'].tolist()
+#print(smaller_1yr)
+
+
+
+# 整合所有条件
+filtered_stocks = set(st) | set(suspended) | set(smaller_1yr)
+filtered_stocks = list(filtered_stocks)
+#print("条件三合一: \n  ST+停牌+上市不满一年: \n", filtered_stocks)
+
+#开始替换为Nan
+df_specific_date = factor.loc[specific_date]
+for stock in df_specific_date.index:
+    if stock in filtered_stocks:
+        factor.loc[(specific_date, stock), 'pcf_ratio_total_lyr'] = np.nan
+
+"""
+#factor_data = rqdatac.get_factor(ticker, factor, start_date=start, end_date=end)
+#factor_data.loc[all_filtered_stocks, :] = None
+
+print("\n", st_stocks)
+print("\n", suspended_stocks)
+print("\n", newly_listed_stocks_1)
+print("\n", len(filtered_stocks))
+# 获取因子数据并替换为NA
+#factor_data = get_factor_data()  # 获取因子数据的函数，需要自行定义或根据实际情况调整
+#factor_data.loc[filtered_stocks] = np.nan
+
+# 保存结果
+#factor_data.to_csv('filtered_factor_data.csv')
+"""
+
