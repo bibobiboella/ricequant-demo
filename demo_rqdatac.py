@@ -48,10 +48,10 @@ for date in dates:
 #转换为t为列的index, s为行的index的格式
 factor = factor.pivot(index='date', columns='order_book_id', values='pcf_ratio_total_lyr')
 
-#处理上市不满一年的情况1: 退市日期 - 上市日期  < 1年 
+#检查上市不满一年的情况1: 退市日期 - 上市日期  < 1年 
 newly_listed_stocks_1['listed_date'] = pd.to_datetime(newly_listed_stocks_1['listed_date'],  errors='coerce')
 newly_listed_stocks_1['de_listed_date'] = pd.to_datetime(newly_listed_stocks_1['de_listed_date'],  errors='coerce')
-newly_listed_stocks_1['is_one_year'] = newly_listed_stocks_1['de_listed_date'] - newly_listed_stocks_1['listed_date'] > pd.Timedelta(days=365)
+newly_listed_stocks_1['is_one_year'] = newly_listed_stocks_1['de_listed_date'] - newly_listed_stocks_1['listed_date'] < pd.Timedelta(days=365)
 newly_listed_stocks_1 = newly_listed_stocks_1[newly_listed_stocks_1['is_one_year'] == True]
 
 #先合并ST和suspended,size一样可以直接or
