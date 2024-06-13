@@ -46,7 +46,7 @@ newly_listed_stocks_1 = newly_listed_stocks_1[newly_listed_stocks_1['is_one_year
 combined = st_stocks | suspended_stocks
 #去除不满一年的股票
 smaller_1yr = newly_listed_stocks_1['order_book_id'].tolist() + newly_listed_stocks_2['order_book_id'].tolist()
-combined[smaller_1yr] = False
+combined[smaller_1yr] = True
 #替换na表格
 factor = factor.mask(combined)
 
