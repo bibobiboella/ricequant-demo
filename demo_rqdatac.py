@@ -28,8 +28,8 @@ csv_file_path_all_1 = os.path.join(root, 'all_stocks.csv')
 factor = pd.read_csv(csv_file_path_fac, index_col = 0)
 st_stocks = pd.read_csv(csv_file_path_st, index_col = 0)
 suspended_stocks = pd.read_csv(csv_file_path_sus, index_col = 0)
-newly_listed_stocks_1 = pd.read_csv(csv_file_path_all_1, index_col = 0, parse_dates=True)
-all_stocks = newly_listed_stocks_1.copy()
+all_stocks = pd.read_csv(csv_file_path_all_1, index_col = 0, parse_dates=True)
+
 
 #get所有的日期
 dates = factor['date'].unique() #取全部因子数据中的date index
@@ -48,21 +48,21 @@ for date in dates:
 #转换为t为列的index, s为行的index的格式
 factor = factor.pivot(index='date', columns='order_book_id', values='pcf_ratio_total_lyr')
 
-#检查上市不满一年的情况1: 退市日期 - 上市日期  < 1年 
-newly_listed_stocks_1['listed_date'] = pd.to_datetime(newly_listed_stocks_1['listed_date'],  errors='coerce')
-newly_listed_stocks_1['de_listed_date'] = pd.to_datetime(newly_listed_stocks_1['de_listed_date'],  errors='coerce')
-newly_listed_stocks_1['is_one_year'] = newly_listed_stocks_1['de_listed_date'] - newly_listed_stocks_1['listed_date'] < pd.Timedelta(days=365)
-newly_listed_stocks_1 = newly_listed_stocks_1[newly_listed_stocks_1['is_one_year'] == True]
+#处理上市不满一年的情况1: 退市日期 - 上市日期  < 1年 
+all_stocks['listed_date'] = pd.to_datetime(all_stocks['listed_date'],  errors='coerce')
+all_stocks['de_listed_date'] = pd.to_datetime(all_stocks['de_listed_date'],  errors='coerce')
+all_stocks['is_one_year'] = all_stocks['de_listed_date'] - all_stocks['listed_date'] < pd.Timedelta(days=365)
+duration_less_1yr = all_stocks[all_stocks['is_one_year'] == True]
 
 #先合并ST和suspended,size一样可以直接or
 combined = st_stocks | suspended_stocks | less_1_yr
-print(combined)
-#去除上市时间不满一年的股票
-smaller_1yr = newly_listed_stocks_1['order_book_id'].tolist()
-combined[smaller_1yr] = True
+print("所有条件集合: \n",combined)
+#去除上市不满一年的股票
+duration_less_1yr = duration_less_1yr['order_book_id'].tolist()
+combined[duration_less_1yr] = True
 #替换na表格
 factor = factor.mask(combined)
-print(factor)
+print("替换na后的因子表: \n",factor)
 
 #——————————————————————————————————第二步————————————————————————————————————————————
 #第二步，因子去极值和标准化（注意都是在同一个时间截面上，不要在时序上去操作，会导致因子包含有未来信息）
