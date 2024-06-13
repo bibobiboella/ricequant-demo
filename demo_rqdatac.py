@@ -1,5 +1,6 @@
 import rqdatac
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 import statsmodels.api as sm
 import pandas as pd
 import numpy as np
@@ -18,20 +19,31 @@ csv_file_path_st =  os.path.join(root, 'st_stocks.csv')
 #停牌
 csv_file_path_sus = os.path.join(root, 'suspended_stocks.csv')
 #上市不满一年
-#1: 退市日期 - 上市日期  < 1年 #248
-#2: 上市日期 > now - 1年 #179
+#1: 退市日期 - 上市日期  < 1年
+#2: 上市日期 > now - 1年 
 csv_file_path_all_1 = os.path.join(root, 'all_stocks.csv')
-csv_file_path_new_2 = os.path.join(root, 'newly_listed_stocks.csv') #截止到当前日期上市不满一年的股票
+
+#csv_file_path_new_2 = os.path.join(root, 'newly_listed_stocks.csv') #截止到当前日期上市不满一年的股票
 #读数据
 factor = pd.read_csv(csv_file_path_fac, index_col = 0)
 st_stocks = pd.read_csv(csv_file_path_st, index_col = 0)
 suspended_stocks = pd.read_csv(csv_file_path_sus, index_col = 0)
 newly_listed_stocks_1 = pd.read_csv(csv_file_path_all_1, index_col = 0, parse_dates=True)
-newly_listed_stocks_2 = pd.read_csv(csv_file_path_new_2, index_col = 0)
-newly_listed_stocks_2.rename(columns={'0': 'order_book_id'}, inplace=True)
+all_stocks = newly_listed_stocks_1.copy()
 
 #get所有的日期
 dates = factor['date'].unique() #取全部因子数据中的date index
+#先设置上市不满一年的s x t TF表格
+less_1_yr = pd.DataFrame(False, index=dates, columns=all_stocks['order_book_id'])
+
+#在每一个时间点上,截止到当前日期上市不满一年
+for date in dates:
+    one_year_ago = (datetime.strptime(date, '%Y-%m-%d') - relativedelta(years=1)).strftime('%Y-%m-%d')
+    newly_listed_stocks_daily = all_stocks[all_stocks['listed_date'] > one_year_ago]['order_book_id'].tolist()
+    less_1_yr[newly_listed_stocks_daily] = True
+   
+
+
 
 #转换为t为列的index, s为行的index的格式
 factor = factor.pivot(index='date', columns='order_book_id', values='pcf_ratio_total_lyr')
@@ -43,19 +55,21 @@ newly_listed_stocks_1['is_one_year'] = newly_listed_stocks_1['de_listed_date'] -
 newly_listed_stocks_1 = newly_listed_stocks_1[newly_listed_stocks_1['is_one_year'] == True]
 
 #先合并ST和suspended,size一样可以直接or
-combined = st_stocks | suspended_stocks
+combined = st_stocks | suspended_stocks | less_1_yr
+print(combined)
 #去除不满一年的股票
-smaller_1yr = newly_listed_stocks_1['order_book_id'].tolist() + newly_listed_stocks_2['order_book_id'].tolist()
-combined[smaller_1yr] = True
+#smaller_1yr = newly_listed_stocks_1['order_book_id'].tolist() + newly_listed_stocks_2['order_book_id'].tolist()
+#combined[smaller_1yr] = True
 #替换na表格
 factor = factor.mask(combined)
+print(factor)
 
 #——————————————————————————————————第二步————————————————————————————————————————————
 #第二步，因子去极值和标准化（注意都是在同一个时间截面上，不要在时序上去操作，会导致因子包含有未来信息）
 def remove_extreme_and_standardize(df):
     #去极值
-    median = df.median(axis=1) #每行: axis=1
-    mad = df.apply(lambda x: np.median(np.abs(x - median)), axis=1)
+    median = df.median(axis=1).values #每行: axis=1
+    mad = np.abs(df.subtract(median, axis=0)).median(axis=1).values
     lower_limit = median - 3 * mad
     upper_limit = median + 3 * mad
     df_clipped = df.clip(lower=lower_limit, upper=upper_limit, axis=0)
@@ -125,5 +139,5 @@ df = df.T
 df.index.name = 'order_book_id'
 #再次标准化
 df = remove_extreme_and_standardize(df)
-print("行业数值中性化逐日回归后的数据: \n", df)
+print("再次标准化后的数据: \n", df)
 
