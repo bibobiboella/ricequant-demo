@@ -40,7 +40,7 @@ less_1_yr = pd.DataFrame(False, index=dates, columns=all_stocks['order_book_id']
 for date in dates:
     one_year_ago = (datetime.strptime(date, '%Y-%m-%d') - relativedelta(years=1)).strftime('%Y-%m-%d')
     newly_listed_stocks_daily = all_stocks[all_stocks['listed_date'] > one_year_ago]['order_book_id'].tolist()
-    less_1_yr[newly_listed_stocks_daily] = True
+    less_1_yr.loc[date][newly_listed_stocks_daily] = True
    
 
 
