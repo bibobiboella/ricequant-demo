@@ -6,7 +6,7 @@ from scipy.stats import spearmanr
 import os
 import pickle
 rqdatac.init()
-"""
+
 start = '20120101'
 end = '20240606'
 start_date = pd.to_datetime(start, format='%Y%m%d')
@@ -30,30 +30,20 @@ today = datetime.now().strftime('%Y-%m-%d')
 csv_file_path = '/Users/ella/factor.csv' 
 df.to_csv(csv_file_path)
 print(f"数据已保存为 {csv_file_path}")
-"""
-
-"""
 start = '20120101'
 end = '20240606'
 
 ticker = rqdatac.all_instruments('CS').order_book_id
-#dates = pd.date_range(start=start, end=end, freq='B') 
-
-
 factor_single =  'pe_ratio'
 
 #get数据,get完后可以comment掉
 all_stocks = rqdatac.all_instruments(type='CS')
-
 all_stock_symbols = all_stocks['order_book_id'].tolist()
 df = rqdatac.get_factor(all_stock_symbols, factor_single, start_date=start, end_date=end).reset_index()
-#print(df['date'].unique())
 dates = pd.to_datetime(df['date'].unique()).strftime('%Y-%m-%d')
 today = datetime.now().strftime('%Y-%m-%d')
-    #date_str = today.strftime('%Y-%m-%d')
 # 获取每天ST的股票
 st_stocks = rqdatac.is_st_stock(ticker, start_date=start, end_date=end)
-#st_stocks = st_stocks[st_stocks.loc['2024-05-31'] == True]#.index.tolist()
 
 csv_file_path = '/Users/ella/factor.csv' 
 df.to_csv(csv_file_path)
@@ -62,19 +52,14 @@ print(f"数据已保存为 {csv_file_path}")
 csv_file_path = '/Users/ella/st_stocks.csv' 
 st_stocks.to_csv(csv_file_path)
 print(f"数据已保存为 {csv_file_path}")
-#df = pd.read_csv(csv_file_path)
 
 
 
-    # 获取每天停牌的股票
+# 获取每天停牌的股票
 suspended_stocks = rqdatac.is_suspended(ticker, start_date=start, end_date=end)
-#print(suspended_stocks)
-#suspended_stocks = suspended_stocks[suspended_stocks[end] == True].index.tolist()
 csv_file_path = '/Users/ella/suspended_stocks.csv'
 suspended_stocks.to_csv(csv_file_path)
 print(f"数据已保存为 {csv_file_path}")
-
-#print(suspended_stocks)
 
 # 获取上市不满一年的股票
 one_year_ago = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
@@ -85,11 +70,7 @@ csv_file_path = '/Users/ella/newly_listed_stocks.csv'
 newly_listed_stocks.to_csv(csv_file_path)
 print(f"数据已保存为 {csv_file_path}")
 
-
-
 #下载流通市值数据
-start = '20120101'
-end = '20240606'
 #股票总市值
 ticker = rqdatac.all_instruments('CS').order_book_id
 market_cap_data = rqdatac.get_factor(ticker, 'market_cap_2', start, end)
@@ -100,13 +81,9 @@ market_cap_df['log_market_cap'] = np.log(market_cap_df['market_cap_2'])
 csv_file_path_ind = '/Users/ella/market_cap_df.csv'
 market_cap_df.to_csv(csv_file_path_ind)
 print(f"数据已保存为 {csv_file_path_ind}")
-"""
+
 start = '20120101'
 end = '20240606'
-#先get一下动态的行业分类数据, 完成后可以删掉
-#start_date = pd.to_datetime(start, format='%Y%m%d')
-#end_date = pd.to_datetime(end, format='%Y%m%d')
-#factor =  'pe_ratio'
 ticker = rqdatac.all_instruments('CS').order_book_id
 dates = pd.date_range(start=start, end=end, freq='B') 
 #print(dates)
