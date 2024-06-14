@@ -4,6 +4,7 @@ from dateutil.relativedelta import relativedelta
 import statsmodels.api as sm
 import pandas as pd
 import numpy as np
+import pickle
 from scipy.stats import spearmanr
 import os
 rqdatac.init()
@@ -66,12 +67,12 @@ print("替换na后的因子表: \n",factor)
 
 #——————————————————————————————————第二步————————————————————————————————————————————
 #第二步，因子去极值和标准化（注意都是在同一个时间截面上，不要在时序上去操作，会导致因子包含有未来信息）
-def remove_extreme_and_standardize(df):
+def remove_extreme_and_standardize(df, n = 3):
     #去极值
-    median = df.median(axis=1).values #每行: axis=1
-    mad = np.abs(df.subtract(median, axis=0)).median(axis=1).values
-    lower_limit = median - 3 * mad
-    upper_limit = median + 3 * mad
+    median = df.median(axis=1) #每行: axis=1
+    mad = np.abs(df.subtract(median, axis=0)).median(axis=1)
+    lower_limit = median - n * 1.4826 * mad
+    upper_limit = median + n * 1.4826 * mad
     df_clipped = df.clip(lower=lower_limit, upper=upper_limit, axis=0)
     # 标准化
     mean = df_clipped.mean(axis=1)
@@ -92,16 +93,9 @@ market_cap_df = pd.read_csv(csv_file_path_market, index_col=0)
 market_cap_df.drop('market_cap_2', axis=1)
 market_cap_df = market_cap_df.pivot(index='date', columns='order_book_id', values='log_market_cap')
 
-#读数据 - 动态行业分类
-csv_file_path_ind = os.path.join(root, 'industry_dummies_1.csv')
-industry_data = pd.read_csv(csv_file_path_ind, index_col=0)
-industry_data = industry_data.fillna(False) #把没有数据的地方也替换成false, 即不属于该分类
-industry_data.groupby(level='date')
-
-#把industry data换成字典的形式
-industry_dict = {}
-for date, group in industry_data.groupby(level=0):
-    industry_dict[date] = group.set_index('order_book_id')
+#读industry dummies,为字典形式
+with open('industry_dummies_dict.pickle', 'rb') as file:
+    industry_dict = pickle.load(file)
 
 #进行逐日回归
 resid_df = pd.DataFrame()
