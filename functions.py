@@ -11,6 +11,7 @@ import pickle
 import matplotlib.pyplot as plt
 import time
 rqdatac.init()
+root = '/Users/ella/rqdata/'
 #——————————————————————————————————因子清洗————————————————————————————————————————————
 #下载数据类:
 def get_factor(factors, start, end, file_name, ticker = rqdatac.all_instruments(type='CS')['order_book_id'].tolist(), root = '/Users/ella/rqdata/'):
@@ -79,7 +80,6 @@ def get_industry_dummies(dates, ticker = rqdatac.all_instruments('CS').order_boo
     #将字典形式保存
     with open('industry_dummies_dict.pickle', 'wb') as file:
         pickle.dump(all_industry_dummies, file)
-
     return all_industry_dummies
     
 
@@ -173,14 +173,14 @@ dates = list(factor.index)[:-1]#.strftime('%Y-%m-%d')
 result = clean(dates, ind, df4,factor_standardized, 'result')
 print(result)
 """
-"""
+
 
 
 
 start = '20120101'
 end = '20240617'
 
-
+"""
 factor = 'pe_ratio'
 dates = get_dates(start, end)
 #print(dates)
@@ -232,9 +232,34 @@ def get_return(start, end,period, file_name, ticker = rqdatac.all_instruments(ty
     returns_df.to_csv(csv_file_path)
     print(f"数据已保存为 {csv_file_path}")
 
-    #returns_df = pd.read_csv(csv_file_path, index_col=0)
-    #return returns_df
-#def align(df1, df2):
+#筛选股票
+def filter_stocks():
+    user_input = input("Enter Index (不要带字符引号): ")
+        #例: '000300.XSHG' 沪深300
+    get_filter_stocks(user_input , start, end)
+
+    with open('constituents.pickle', 'rb') as file:
+        filter = pickle.load(file)
+    result = pd.read_csv('/Users/ella/rqdata/result',index_col=0)
+    result = result.T
+    result.index.name = 'date'
+    filtered_df = pd.DataFrame()
+    # 利用filter_dict中的日期和股票列表进行过滤
+    for date, stocks in filter.items():
+        if date in result.index:
+            try:
+                # 选择特定日期的行并重新索引以仅保留指定股票列
+                filtered_data = result.loc[date, stocks]
+                # 将过滤后的数据添加到新的dataframe中
+                filtered_df = pd.concat([filtered_df, filtered_data.to_frame().T], axis=0)
+            except KeyError:
+                # 跳过不存在的股票
+                available_stocks = [stock for stock in stocks if stock in result.columns]
+                if available_stocks:
+                    filtered_data = result.loc[date, available_stocks]
+                    filtered_df = pd.concat([filtered_df, filtered_data.to_frame().T], axis=0)
+    print(filtered_df)
+    return filtered_df
 
 
 #计算因子评价
@@ -262,16 +287,19 @@ def calc_icir(period, returns_df, result, option, ic_values = []):
         return ir_df
     
     elif option == '3':
+        user_input = input("请问您今天要过滤点啥吗 (y/N): ")
+        if user_input == 'y':
+            result = filter_stocks()
         #result = pd.read_csv('/Users/ella/rqdata/result',index_col=0)
         #print("result_3: \n", result)
         ranked_df = result.apply(quantile_rank, axis=1)
-        print("RANKED TABLE: \n", ranked_df)
+        #print("RANKED TABLE: \n", ranked_df)
         layer_ind = result.apply(lambda x: pd.qcut(x.rank(method="first"), q=5, labels=range(5)), axis=1)
         print("layer_ind: \n",layer_ind)
         
         price = pd.read_csv('/Users/ella/rqdata/get_price',index_col=0)
         #print("price: ", price)
-        days_after = 2
+        days_after = 40
         dates = list(price.index)
         # 创建一个空的 DataFrame 来存储所有日期的结果
         all_average_returns_df = pd.DataFrame()
@@ -302,8 +330,7 @@ def calc_icir(period, returns_df, result, option, ic_values = []):
 
 
     elif option == '4':
-        file_path_input = input("Enter filepath: ")
-        df = pd.read_csv(os.path.join(file_path_input, 'group_avg_returns'), index_col=0)
+        df = pd.read_csv(os.path.join(root, 'group_avg_returns'), index_col=0)
         df.index = pd.to_datetime(df.index)
         # 画出折线图
         plt.figure(figsize=(12, 6))
@@ -316,7 +343,14 @@ def calc_icir(period, returns_df, result, option, ic_values = []):
         plt.title('Line Graph for Each Label')
         plt.legend()
         plt.grid(True)
-        plt.savefig(os.path.join(file_path_input, 'line_graph.png'))
+        plt.savefig(os.path.join(root, 'line_graph.png'))
+
+    elif option == '5':
+        user_input = input("Enter Index: (不要带字符引号)")
+        #例: '000300.XSHG' 沪深300
+        get_filter_stocks(user_input , start, end)
+
+
     elif option == '9':
         with open('industry_dummies_dict.pickle', 'rb') as file:
             ind = pickle.load(file)
@@ -346,6 +380,17 @@ def quantile_rank(row):
     labels = pd.cut(non_nan_row, bins=bins, labels=[1, 2, 3, 4, 5])
     return labels
 
+#获取每日指数成分列表
+def get_filter_stocks(index_code,start, end):
+    #'000300.XSHG'  # 沪深300指数代码
+    constituents = rqdatac.index_components(index_code,  start_date = start,end_date =end)
+    constituents = pd.Series(constituents).rename(lambda x: x.strftime('%Y-%m-%d')).to_dict()
+    #将字典形式保存
+    with open('constituents.pickle', 'wb') as file:
+        pickle.dump(constituents, file)
+    print("数据已保存成功")
+    print(len(constituents))
+    #return constituents
 
 
 
@@ -359,6 +404,7 @@ def main():
         print("2. 计算 ir")
         print("3. 分层收益")
         print("4. 画图")
+        print("5. 获取指数成分股筛选")
         print("9. 读数据&因子清洗")
         print("0. Exit")
 
@@ -374,7 +420,6 @@ def main():
         result = result.T
         result.index.name = 'date'
         #print(result)
-        #result.dropna(axis = 1, inplace = True)
         returns_df, result = returns_df.align(result, join='inner', axis=0)  # 对齐行
         returns_df, result = returns_df.align(result, join='inner', axis=1)  # 对齐列
 
@@ -389,11 +434,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
 
 
 
