@@ -263,9 +263,11 @@ def calc_icir(period, returns_df, result, option, ic_values = []):
     
     elif option == '3':
         #result = pd.read_csv('/Users/ella/rqdata/result',index_col=0)
-        print("result_3: \n", result)
+        #print("result_3: \n", result)
         ranked_df = result.apply(quantile_rank, axis=1)
         print("RANKED TABLE: \n", ranked_df)
+        layer_ind = result.apply(lambda x: pd.qcut(x.rank(method="first"), q=5, labels=range(5)), axis=1)
+        print("layer_ind: \n",layer_ind)
         
         price = pd.read_csv('/Users/ella/rqdata/get_price',index_col=0)
         #print("price: ", price)
@@ -283,7 +285,7 @@ def calc_icir(period, returns_df, result, option, ic_values = []):
                 returns = (price_end - price_start) / price_start
                 # 将标签和收益率合并
                 returns_df = returns.to_frame(name='returns')
-                returns_df['label'] = ranked_df.loc[date]
+                returns_df['label'] = layer_ind.loc[date]
                 # 按标签计算平均收益率
                 average_returns = returns_df.groupby('label')['returns'].mean()
                 # 将结果转为 DataFrame，并设置索引为日期
@@ -294,6 +296,7 @@ def calc_icir(period, returns_df, result, option, ic_values = []):
         all_average_returns_df.to_csv(csv_file_path)
         print(f"数据已保存为 {csv_file_path}")
         print("\n 分层收益率结果: \n",all_average_returns_df)
+        
 
 
 
@@ -340,7 +343,7 @@ def quantile_rank(row):
     non_nan_row = row.dropna()
     quantiles = np.unique(np.quantile(non_nan_row, [0.2, 0.4, 0.6, 0.8]))
     bins = [-np.inf, *quantiles, np.inf]
-    labels = pd.cut(non_nan_row, bins=bins, labels=[5, 4, 3, 2, 1])
+    labels = pd.cut(non_nan_row, bins=bins, labels=[1, 2, 3, 4, 5])
     return labels
 
 
@@ -370,7 +373,7 @@ def main():
         result = pd.read_csv('/Users/ella/rqdata/result',index_col=0)
         result = result.T
         result.index.name = 'date'
-        print(result)
+        #print(result)
         #result.dropna(axis = 1, inplace = True)
         returns_df, result = returns_df.align(result, join='inner', axis=0)  # 对齐行
         returns_df, result = returns_df.align(result, join='inner', axis=1)  # 对齐列
