@@ -14,7 +14,7 @@ rqdatac.init()
 root = '/Users/ella/test/'
 start = '20120101'
 end = '20240617'
-period = 60
+period = 20
 #——————————————————————————————————因子清洗————————————————————————————————————————————
 #下载数据类:
 def get_factor(factors, start, end, file_name, ticker = rqdatac.all_instruments(type='CS')['order_book_id'].tolist(), root = root):
@@ -361,6 +361,8 @@ def calc_icir(period, returns_df, result, option, ic_values = []):
     elif option == '3':
         user_input = input("请问您今天要过滤点啥吗 (y/N): ")
         if user_input == 'y':
+            print("指数成分股列表已存在") if check_file_exists('/Users/ella/constituents.pickle') else get_filter_stocks(input("Enter Index (不要带字符引号, 例: '000300.XSHG' 沪深300): ") , start, end)
+        #例: '000300.XSHG' 沪深300
             result = filter_stocks()
         #result = pd.read_csv('/Users/ella/rqdata/result',index_col=0)
         #print("result_3: \n", result)
@@ -403,8 +405,14 @@ def calc_icir(period, returns_df, result, option, ic_values = []):
 
 
     elif option == '4':
+        user_input = input("enter a time range (all/custom): ")
         df = pd.read_csv(os.path.join(root, 'group_avg_returns'), index_col=0)
         df.index = pd.to_datetime(df.index)
+        if user_input == 'custom':
+            start_date = input("start: ")
+            end_date = input("end: ")
+            df = df[(df.index >= start_date) & (df.index <= end_date)]
+        
         # 画出折线图
         plt.figure(figsize=(12, 6))
 
@@ -418,10 +426,10 @@ def calc_icir(period, returns_df, result, option, ic_values = []):
         plt.grid(True)
         plt.savefig(os.path.join(root, 'line_graph.png'))
 
-    elif option == '5':
-        user_input = input("Enter Index: (不要带字符引号)")
+    #elif option == '5':
+    #    user_input = input("Enter Index: (不要带字符引号)")
         #例: '000300.XSHG' 沪深300
-        get_filter_stocks(user_input , start, end)
+    #    get_filter_stocks(user_input , start, end)
 
 
 
@@ -460,7 +468,6 @@ def main():
         print("2. 计算 ir")
         print("3. 分层收益")
         print("4. 画图")
-        print("5. 获取指数成分股筛选")
         print("8. 下载需要的数据 (最好第一个摁这个!)")
         print("9. 读数据&因子清洗(最好第二个摁这个!)")
         print("0. Exit")
