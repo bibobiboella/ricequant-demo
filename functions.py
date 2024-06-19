@@ -11,9 +11,10 @@ import pickle
 import matplotlib.pyplot as plt
 import time
 rqdatac.init()
-root = '/Users/ella/turnover/'
-start = '20240601'
+root = '/Users/ella/test/'
+start = '20120101'
 end = '20240617'
+period = 60
 #——————————————————————————————————因子清洗————————————————————————————————————————————
 #下载数据类:
 def get_factor(factors, start, end, file_name, ticker = rqdatac.all_instruments(type='CS')['order_book_id'].tolist(), root = root):
@@ -26,7 +27,7 @@ def get_factor(factors, start, end, file_name, ticker = rqdatac.all_instruments(
     print(f"数据已保存为 {csv_file_path}")
     #return factor
 
-def get_turnover_rate(start, end, file_name, ticker = rqdatac.all_instruments(type='CS')['order_book_id'].tolist(), root = root):
+def get_turnover_rate(start, end, file_name = 'turnover', ticker = rqdatac.all_instruments(type='CS')['order_book_id'].tolist(), root = root):
     turnover = rqdatac.get_turnover_rate(ticker, start, end, fields='today')
     turnover = turnover.reset_index().pivot(index='tradedate', columns='order_book_id', values='today')
     turnover.index.name = 'date'
@@ -157,7 +158,9 @@ def clean(dates, industry_dict, market_cap_df, factor_standardized, file_name, r
     print(f"数据已保存为 {csv_file_path}")
     return resid_df
 
- 
+#检查类
+def check_file_exists(file_path):
+    return os.path.isfile(file_path)
 
 
 """
@@ -226,7 +229,7 @@ def get_price(start, end,period, file_name = 'get_price', ticker = rqdatac.all_i
     print(f"数据已保存为 {csv_file_path}")
 
 
-def get_return(start, end, file_name = 'returns_df', period = 2, ticker = rqdatac.all_instruments(type='CS')['order_book_id'].tolist(), root = root, field = 'close'):
+def get_return(start, end, file_name = 'returns_df', period = period, ticker = rqdatac.all_instruments(type='CS')['order_book_id'].tolist(), root = root, field = 'close'):
     end_date = pd.to_datetime(end, format='%Y%m%d')
     new_end_date = end_date + pd.tseries.offsets.BDay(period)
     new_end = new_end_date.strftime('%Y%m%d')
@@ -243,13 +246,13 @@ def get_return(start, end, file_name = 'returns_df', period = 2, ticker = rqdata
 
 #筛选股票
 def filter_stocks():
-    user_input = input("Enter Index (不要带字符引号): ")
+    user_input = input("Enter Index (不要带字符引号, 例: '000300.XSHG' 沪深300): ")
         #例: '000300.XSHG' 沪深300
     get_filter_stocks(user_input , start, end)
 
     with open('constituents.pickle', 'rb') as file:
         filter = pickle.load(file)
-    result = pd.read_csv(root,index_col=0)
+    result = pd.read_csv(os.path.join(root, 'result'),index_col=0)
     result = result.T
     result.index.name = 'date'
     filtered_df = pd.DataFrame()
@@ -272,23 +275,41 @@ def filter_stocks():
 
 
 def download_data():
-    user_input_factor = input("Enter a factor: ")
-    get_factor(user_input_factor, start, end, 'fac')
-    get_st(start, end, 'df1')
-    get_suspended(start, end, 'df2')
+    user_input_factor_1 = input("是否想查看换手率(y/N): ")
+    if user_input_factor_1 == 'y':
+        if not check_file_exists(os.path.join(root, 'turnover')):
+            get_turnover_rate(start, end)
+        else:
+            print("turnover已存在")
+        factor = pd.read_csv(os.path.join(root, 'turnover'), index_col=0)
+    elif user_input_factor_1 == 'N':
+        if not check_file_exists(os.path.join(root, 'fac')):
+            user_input_factor = input("Enter a factor: ")
+            get_factor(user_input_factor, start, end, 'fac')
+        else:
+            print("factor已存在")
+        factor = pd.read_csv(os.path.join(root, 'fac'), index_col=0)
+    print("st已存在") if check_file_exists(os.path.join(root, 'df1')) else get_st(start, end, 'df1')
+    print("停牌已存在") if check_file_exists(os.path.join(root, 'df2')) else get_suspended(start, end, 'df2')
     #dates = get_dates(start, end)
     #dates = list(factor_standardized.index.strftime('%Y-%m-%d'))
-    factor = pd.read_csv(os.path.join(root, 'fac'), index_col=0)
     dates = list(factor.index)
-    get_less_1yr(dates,'df3')
-    get_market_cap(start, end, 'df4')
-    get_industry_dummies(dates)
-    get_return(start, end)
+    print("上市小于一年已存在") if check_file_exists(os.path.join(root, 'df3')) else get_less_1yr(dates,'df3')
+    print("市值已存在") if check_file_exists(os.path.join(root, 'df4')) else get_market_cap(start, end, 'df4')
+    print("industry dummies已存在") if check_file_exists('/Users/ella/industry_dummies_dict.pickle') else get_industry_dummies(dates)
+    print("returns已存在") if check_file_exists(os.path.join(root, 'returns_df')) else get_return(start, end)
 
 def read_data():
+    user_input_factor_1 = input("是否想查看换手率(y/N): ")
+    if user_input_factor_1 == 'N':
+        factor = pd.read_csv(os.path.join(root, 'fac'), index_col=0) #因子
+        print("因子: \n", factor)
+    elif user_input_factor_1 == 'y':
+        factor = pd.read_csv(os.path.join(root, 'turnover'), index_col=0) #因子
+        print("换手率因子: \n", factor)
     with open('industry_dummies_dict.pickle', 'rb') as file:
         ind = pickle.load(file)
-    print("ind: \n", ind)
+    print("ind: \n", len(ind))
     #file_path_input = input("Enter filepath: ")
     df1 = pd.read_csv(os.path.join(root, 'df1'), index_col=0) #st
     print("st: \n", df1)
@@ -298,8 +319,6 @@ def read_data():
     print("不满一年: \n", df3)
     df4 = pd.read_csv(os.path.join(root, 'df4'), index_col=0) #市值
     print("市值: \n", df4)
-    factor = pd.read_csv(os.path.join(root, 'fac'), index_col=0) #因子
-    print("因子: \n", factor)
     factor = replace_na(factor, df1, df2, df3)
     print("替换na: \n", factor)
     factor_standardized = remove_extreme_and_standardize(factor)
@@ -308,25 +327,25 @@ def read_data():
         #print(factor_standardized)
     dates = list(factor.index)
         #print("dates: \n", dates)
-    result = clean(dates, ind, df4,factor_standardized, 'result')
+    clean(dates, ind, df4,factor_standardized, 'result')
     #print("result; \n", result)
 
 #计算因子评价
 def calc_icir(period, returns_df, result, option, ic_values = []):
     if option == '1':
-        print("returns_df: \n", returns_df)
+        #print("returns_df: \n", returns_df)
         dates = pd.to_datetime(returns_df.index)
-        print("dates: \n", dates)
+        #print("dates: \n", dates)
         for date in dates:
             future_date = date + pd.tseries.offsets.BDay(period)
-            print(future_date)
+            #print(future_date)
             date = date.strftime('%Y-%m-%d')
             future_date = future_date.strftime('%Y-%m-%d')
             if future_date in returns_df.index:
                 factor_ranks = result.loc[date].rank()
-                print("factor_ranks: ",factor_ranks)
+                #print("factor_ranks: ",factor_ranks)
                 returns_ranks = returns_df.loc[future_date].rank()
-                print("returns_ranks: ", returns_ranks)
+                #print("returns_ranks: ", returns_ranks)
                 ic, _ = spearmanr(factor_ranks, returns_ranks, nan_policy='omit') #_ = p_val, omit means ignoring nan but still performs calculation
                 ic_values.append({'date': date, 'IC': ic})
         ic_df = pd.DataFrame(ic_values)
@@ -345,13 +364,13 @@ def calc_icir(period, returns_df, result, option, ic_values = []):
             result = filter_stocks()
         #result = pd.read_csv('/Users/ella/rqdata/result',index_col=0)
         #print("result_3: \n", result)
-        ranked_df = result.apply(quantile_rank, axis=1)
+        #ranked_df = result.apply(quantile_rank, axis=1)
         #print("RANKED TABLE: \n", ranked_df)
         layer_ind = result.apply(lambda x: pd.qcut(x.rank(method="first"), q=5, labels=range(1, 6)), axis=1)
-        print("layer_ind: \n",layer_ind)
+        #print("layer_ind: \n",layer_ind)
         
         price = pd.read_csv(os.path.join(root, 'get_price'),index_col=0)
-        print("price: ", price)
+        #print("price: ", price)
         days_after = period
         dates = list(price.index)
         # 创建一个空的 DataFrame 来存储所有日期的结果
@@ -364,7 +383,7 @@ def calc_icir(period, returns_df, result, option, ic_values = []):
                 price_start = price.loc[date]
                 price_end = price.loc[end_date]
                 returns = (price_end - price_start) / price_start
-                print("returns: ", returns)
+                #print("returns: ", returns)
                 # 将标签和收益率合并
                 returns_df = returns.to_frame(name='returns')
                 returns_df['label'] = layer_ind.loc[date]
@@ -442,8 +461,8 @@ def main():
         print("3. 分层收益")
         print("4. 画图")
         print("5. 获取指数成分股筛选")
-        print("8. 下载需要的数据")
-        print("9. 读数据&因子清洗")
+        print("8. 下载需要的数据 (最好第一个摁这个!)")
+        print("9. 读数据&因子清洗(最好第二个摁这个!)")
         print("0. Exit")
 
         
@@ -468,12 +487,12 @@ def main():
 
             #price = pd.read_csv('/Users/ella/rqdata/get_price',index_col=0)
             #print("price: ", price)
-            print("Return: ", returns_df)
-            print("Result: ", result)
+            #print("Return: ", returns_df)
+            #print("Result: ", result)
             
 
 
-            result = calc_icir(2, returns_df, result, user_input)
+            result = calc_icir(period, returns_df, result, user_input)
         #return result
 
 if __name__ == "__main__":
