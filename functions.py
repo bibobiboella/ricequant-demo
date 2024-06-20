@@ -9,6 +9,7 @@ from scipy.stats import spearmanr
 import os
 import pickle
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import time
 rqdatac.init()
 root = '/Users/ella/test/'
@@ -359,51 +360,93 @@ def calc_icir(period, returns_df, result, option, ic_values = []):
         return ir_df
     
     elif option == '3':
+        r = []
+        price = pd.read_csv(os.path.join(root, 'get_price'),index_col=0)
+        dates = pd.Series(price.index)
+
         user_input = input("请问您今天要过滤点啥吗 (y/N): ")
         if user_input == 'y':
             print("指数成分股列表已存在") if check_file_exists('/Users/ella/constituents.pickle') else get_filter_stocks(input("Enter Index (不要带字符引号, 例: '000300.XSHG' 沪深300): ") , start, end)
         #例: '000300.XSHG' 沪深300
             result = filter_stocks()
-        #result = pd.read_csv('/Users/ella/rqdata/result',index_col=0)
-        #print("result_3: \n", result)
-        #ranked_df = result.apply(quantile_rank, axis=1)
-        #print("RANKED TABLE: \n", ranked_df)
+
         layer_ind = result.apply(lambda x: pd.qcut(x.rank(method="first"), q=5, labels=range(1, 6)), axis=1)
+        #csv_file_path = os.path.join(root, 'layer_ind')
+        #layer_ind.to_csv(csv_file_path)
+        #print(f"数据已保存为 {csv_file_path}")
         #print("layer_ind: \n",layer_ind)
         
-        price = pd.read_csv(os.path.join(root, 'get_price'),index_col=0)
+        
         #print("price: ", price)
-        days_after = period
-        dates = list(price.index)
-        # 创建一个空的 DataFrame 来存储所有日期的结果
-        all_average_returns_df = pd.DataFrame()
-        for date in dates:
-            # 计算结束日期
-            end_date = (pd.to_datetime(date) + pd.offsets.BDay(days_after)).strftime('%Y-%m-%d')
-            if end_date in dates:
-                # 计算收益率
-                price_start = price.loc[date]
-                price_end = price.loc[end_date]
-                returns = (price_end - price_start) / price_start
-                #print("returns: ", returns)
-                # 将标签和收益率合并
-                returns_df = returns.to_frame(name='returns')
-                returns_df['label'] = layer_ind.loc[date]
-                # 按标签计算平均收益率
-                average_returns = returns_df.groupby('label')['returns'].mean()
-                # 将结果转为 DataFrame，并设置索引为日期
-                average_returns_df = average_returns.to_frame().T
-                average_returns_df.index = [date]
-                all_average_returns_df = pd.concat([all_average_returns_df, average_returns_df])
+        for i in range(0, len(dates), 20):
+            date = dates[0]
+            dates = dates.shift(-20)
+            end_date = dates[0]#(pd.to_datetime(date) + pd.offsets.BDay(days_after)).strftime('%Y-%m-%d')
+            #print("date: ", date)
+            #print("end date: ", end_date)
+            if end_date == None:
+                break
+            
+            period_daily_return = (price.loc[date: end_date].diff()/price.loc[date])[1:]
+            all_average_returns_df = pd.concat([period_daily_return])#.cumsum()
+            #print(all_average_returns_df)
+            period_label = layer_ind.loc[date: end_date].iloc[0]
+            #print(len(period_label[period_label == 1].index))
+            group_1_returns = all_average_returns_df.loc[date: end_date][period_label[period_label == 1].index]
+            group_1_returns = group_1_returns.mean(axis=1).to_frame(name=1)
+            group_2_returns = all_average_returns_df.loc[date: end_date][period_label[period_label == 2].index]
+            group_2_returns = group_2_returns.mean(axis=1).to_frame(name=2)
+            group_3_returns = all_average_returns_df.loc[date: end_date][period_label[period_label == 3].index]
+            group_3_returns = group_3_returns.mean(axis=1).to_frame(name=3)
+            group_4_returns = all_average_returns_df.loc[date: end_date][period_label[period_label == 4].index]
+            group_4_returns = group_4_returns.mean(axis=1).to_frame(name=4)
+            group_5_returns = all_average_returns_df.loc[date: end_date][period_label[period_label == 5].index]
+            group_5_returns = group_5_returns.mean(axis=1).to_frame(name=5)
+            #r = pd.concat([group_1_returns, group_2_returns, group_3_returns, group_4_returns, group_5_returns], axis=1)
+            r.append(pd.concat([group_1_returns, group_2_returns, group_3_returns, group_4_returns, group_5_returns], axis=1))
+            #print(r)
+            #result
+        
+        all_average_returns_df = pd.concat(r)
+        df = all_average_returns_df.copy()
+        all_average_returns_df = all_average_returns_df.cumsum()
+        
+        
         csv_file_path = os.path.join(root, 'group_avg_returns')
         all_average_returns_df.to_csv(csv_file_path)
         print(f"数据已保存为 {csv_file_path}")
         print("\n 分层收益率结果: \n",all_average_returns_df)
+
+        #df = all_average_returns_df
+        user_input = input("enter a time range (all/custom): ")
+        #df = pd.read_csv(os.path.join(root, 'group_avg_returns'), index_col=0)
+        df.index = pd.to_datetime(df.index)
+        if user_input == 'custom':
+            start_date = input("start: ")
+            end_date = input("end: ")
+            df = df[(df.index >= start_date) & (df.index <= end_date)]
+            df = df.cumsum()
+        elif user_input == 'all':
+            df = df.cumsum()
+        df.index = pd.to_datetime(df.index)
+        plt.figure(figsize=(40, 6))
+        for column in df.columns:
+            plt.plot(df.index, df[column], label=column, alpha=0.4)
+        plt.xlabel('Date')
+        plt.ylabel('Group Return')
+        plt.title('Line Graph for Each Label')
+        plt.gca().xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+        plt.legend()
+        plt.grid(True)
+        plt.xticks(rotation=45)
+        plt.savefig(os.path.join(root, 'line_graph.png'))
+        print(f"图片已保存为 {os.path.join(root, 'line_graph.png')}")
         
 
 
 
-
+"""
     elif option == '4':
         user_input = input("enter a time range (all/custom): ")
         df = pd.read_csv(os.path.join(root, 'group_avg_returns'), index_col=0)
@@ -412,24 +455,22 @@ def calc_icir(period, returns_df, result, option, ic_values = []):
             start_date = input("start: ")
             end_date = input("end: ")
             df = df[(df.index >= start_date) & (df.index <= end_date)]
-        
-        # 画出折线图
-        plt.figure(figsize=(12, 6))
-
-        # 为每个列标签画出折线图
+        df.index = pd.to_datetime(df.index)
+        plt.figure(figsize=(40, 6))
         for column in df.columns:
-            plt.plot(df.index, df[column], label=column, alpha = 0.4)
+            plt.plot(df.index, df[column], label=column, alpha=0.4)
         plt.xlabel('Date')
         plt.ylabel('Group Return')
         plt.title('Line Graph for Each Label')
+        plt.gca().xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
         plt.legend()
         plt.grid(True)
+        plt.xticks(rotation=45)
         plt.savefig(os.path.join(root, 'line_graph.png'))
 
-    #elif option == '5':
-    #    user_input = input("Enter Index: (不要带字符引号)")
-        #例: '000300.XSHG' 沪深300
-    #    get_filter_stocks(user_input , start, end)
+"""
+
 
 
 
@@ -466,7 +507,7 @@ def main():
         print("\n Select an option for calculation:")
         print("1. 计算 ic")
         print("2. 计算 ir")
-        print("3. 分层收益")
+        print("3. 分层收益&画图")
         print("4. 画图")
         print("8. 下载需要的数据 (最好第一个摁这个!)")
         print("9. 读数据&因子清洗(最好第二个摁这个!)")
