@@ -141,7 +141,7 @@ def get_industry_dummies(dates, ticker = rqdatac.all_instruments('CS').order_boo
         industry_dummies = pd.get_dummies(df_sw_ind['index_name'], prefix='industry')
         all_industry_dummies[current] = industry_dummies
     #将字典形式保存
-    with open('industry_dummies_dict.pickle', 'wb') as file:
+    with open(os.path.join(root, 'industry_dummies_dict.pickle'), 'wb') as file:
         pickle.dump(all_industry_dummies, file)
     print("已成功保存industry_dummies_dict")
     
@@ -291,10 +291,10 @@ def filter_stocks():
     """
     可以输入指数成分的字段来筛选只属于那个指数成分的股票
     """
-    user_input = input("Enter Index (不要带字符引号, 例: 000300.XSHG 沪深300): ")
-    get_filter_stocks(user_input , start, end)
+    user_input = input("请输入想要筛选的Index (不要带字符引号, 例: 000300.XSHG 沪深300): ")
+    print(f"{user_input}已存在") if check_file_exists(os.path.join(root, f'{user_input}.pickle')) else get_filter_stocks(user_input , start, end)
 
-    with open('constituents.pickle', 'rb') as file:
+    with open(os.path.join(root, f'{user_input}.pickle'), 'rb') as file:
         filter = pickle.load(file)
     result = pd.read_csv(os.path.join(root, 'result'),index_col=0)
     result = result.T
@@ -340,7 +340,7 @@ def download_data():
     dates = list(factor.index)
     print("上市小于一年已存在") if check_file_exists(os.path.join(root, 'df3')) else get_less_1yr(dates,'df3')
     print("市值已存在") if check_file_exists(os.path.join(root, 'df4')) else get_market_cap(start, end, 'df4')
-    print("industry dummies已存在") if check_file_exists('/Users/ella/industry_dummies_dict.pickle') else get_industry_dummies(dates)
+    print("industry dummies已存在") if check_file_exists(os.path.join(root, 'industry_dummies_dict.pickle')) else get_industry_dummies(dates)
     print("price已存在") if check_file_exists(os.path.join(root, 'get_price')) else get_price(start, end, period)
     print("returns已存在") if check_file_exists(os.path.join(root, 'returns_df')) else get_return(start, end)
 
@@ -355,7 +355,7 @@ def read_data():
     elif user_input_factor_1 == 'y':
         factor = pd.read_csv(os.path.join(root, 'turnover'), index_col=0) #因子
         print("换手率因子: \n", factor)
-    with open('industry_dummies_dict.pickle', 'rb') as file:
+    with open(os.path.join(root, 'industry_dummies_dict.pickle'), 'rb') as file:
         ind = pickle.load(file)
     print("ind: \n", len(ind))
     df1 = pd.read_csv(os.path.join(root, 'df1'), index_col=0) #st
@@ -407,7 +407,7 @@ def calc_icir(period, returns_df, result, option, ic_values = []):
 
         user_input = input("是否需要筛选特定指数成分股 (y/N): ")
         if user_input == 'y':
-            print("指数成分股列表已存在") if check_file_exists('/Users/ella/constituents.pickle') else get_filter_stocks(input("Enter Index (不要带字符引号, 例: '000300.XSHG' 沪深300): ") , start, end)
+            print("指数成分股列表已存在") if check_file_exists(os.path.join(root, f'{user_input}.pickle')) else get_filter_stocks(input("Enter Index (不要带字符引号, 例: '000300.XSHG' 沪深300): ") , start, end)
             result = filter_stocks()
 
         layer_ind = result.apply(lambda x: pd.qcut(x.rank(method="first"), q=5, labels=range(1, 6)), axis=1)
@@ -480,7 +480,7 @@ def get_filter_stocks(index_code,start, end):
     #'000300.XSHG'  # 沪深300指数代码
     constituents = rqdatac.index_components(index_code,  start_date = start,end_date =end)
     constituents = pd.Series(constituents).rename(lambda x: x.strftime('%Y-%m-%d')).to_dict()
-    with open('constituents.pickle', 'wb') as file:
+    with open(os.path.join(root, f'{index_code}.pickle'), 'wb') as file:
         pickle.dump(constituents, file)
     print("数据已保存成功")
 
